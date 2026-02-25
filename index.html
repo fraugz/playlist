@@ -403,6 +403,126 @@
 
   .status-msg.error { color: #e05a5a; }
   .mode-active { color: var(--accent) !important; }
+
+  /* Botón letra */
+  .btn-lyrics {
+    background: none;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    cursor: pointer;
+    color: var(--muted);
+    font-family: 'DM Mono', monospace;
+    font-size: 0.65rem;
+    letter-spacing: 0.15em;
+    text-transform: uppercase;
+    padding: 0.35rem 0.75rem;
+    margin-top: 1rem;
+    display: none;
+    transition: all 0.2s;
+    width: 100%;
+  }
+
+  .btn-lyrics.visible { display: block; }
+  .btn-lyrics:hover { border-color: var(--accent); color: var(--accent); }
+
+  /* Modal */
+  .modal-overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,0.75);
+    backdrop-filter: blur(6px);
+    z-index: 100;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 2rem;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.25s ease;
+  }
+
+  .modal-overlay.open {
+    opacity: 1;
+    pointer-events: all;
+  }
+
+  .modal {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    width: 100%;
+    max-width: 560px;
+    max-height: 80vh;
+    display: flex;
+    flex-direction: column;
+    position: relative;
+    transform: translateY(16px);
+    transition: transform 0.25s ease;
+    overflow: hidden;
+  }
+
+  .modal-overlay.open .modal { transform: translateY(0); }
+
+  .modal::before {
+    content: '';
+    position: absolute;
+    top: 0; left: 0; right: 0;
+    height: 2px;
+    background: linear-gradient(90deg, var(--accent), var(--accent2));
+  }
+
+  .modal-header {
+    padding: 1.5rem 1.5rem 1rem;
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 1rem;
+    flex-shrink: 0;
+  }
+
+  .modal-title {
+    font-family: 'Playfair Display', serif;
+    font-size: 1.2rem;
+    color: var(--text);
+    line-height: 1.3;
+  }
+
+  .modal-close {
+    background: none;
+    border: none;
+    cursor: pointer;
+    color: var(--muted);
+    font-size: 1.2rem;
+    padding: 0.1rem 0.3rem;
+    transition: color 0.2s;
+    flex-shrink: 0;
+    line-height: 1;
+  }
+
+  .modal-close:hover { color: var(--text); }
+
+  .modal-body {
+    padding: 0 1.5rem 1.5rem;
+    overflow-y: auto;
+    flex: 1;
+  }
+
+  .modal-body::-webkit-scrollbar { width: 4px; }
+  .modal-body::-webkit-scrollbar-track { background: transparent; }
+  .modal-body::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
+
+  .modal-lyrics {
+    font-size: 0.82rem;
+    line-height: 2.2;
+    color: var(--muted);
+    white-space: pre-wrap;
+    letter-spacing: 0.02em;
+  }
+
+  .modal-lyrics .verse-break {
+    display: block;
+    height: 0.8rem;
+  }
 </style>
 </head>
 <body>
@@ -446,6 +566,8 @@
       <input type="range" id="volume" min="0" max="1" step="0.02" value="0.8">
       <span>🔊</span>
     </div>
+
+    <button class="btn-lyrics" id="btnLyrics">♩ Ver letra completa</button>
   </div>
 
   <div class="playlist-header">
@@ -455,6 +577,19 @@
 
   <div class="playlist" id="playlist">
     <div class="status-msg">⏳ Cargando canciones…</div>
+  </div>
+</div>
+
+<!-- Modal letra completa -->
+<div class="modal-overlay" id="modalOverlay">
+  <div class="modal">
+    <div class="modal-header">
+      <div class="modal-title" id="modalTitle"></div>
+      <button class="modal-close" id="modalClose">✕</button>
+    </div>
+    <div class="modal-body">
+      <div class="modal-lyrics" id="modalLyrics"></div>
+    </div>
   </div>
 </div>
 
@@ -478,6 +613,11 @@ const btnRepeat     = document.getElementById('btnRepeat');
 const volumeSlider  = document.getElementById('volume');
 const karaokeWrap   = document.getElementById('karaokeWrap');
 const karaokeInner  = document.getElementById('karaokeInner');
+const btnLyrics     = document.getElementById('btnLyrics');
+const modalOverlay  = document.getElementById('modalOverlay');
+const modalTitle    = document.getElementById('modalTitle');
+const modalLyrics   = document.getElementById('modalLyrics');
+const modalClose    = document.getElementById('modalClose');
 
 let tracks       = [];
 let durations    = {};
@@ -487,8 +627,26 @@ let shuffle      = false;
 let repeat       = false;
 let lyrics       = [];
 let currentLine  = -1;
+let plainLyrics  = '';   // texto plano para el modal
 
 audio.volume = 0.8;
+
+// ── Modal ────────────────────────────────────────────────────────────────────
+
+function openModal() {
+  modalTitle.textContent = tracks[currentIndex]?.name || '';
+  modalLyrics.textContent = plainLyrics;
+  modalOverlay.classList.add('open');
+}
+
+function closeModal() {
+  modalOverlay.classList.remove('open');
+}
+
+btnLyrics.addEventListener('click', openModal);
+modalClose.addEventListener('click', closeModal);
+modalOverlay.addEventListener('click', e => { if (e.target === modalOverlay) closeModal(); });
+document.addEventListener('keydown', e => { if (e.key === 'Escape') closeModal(); });
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -556,18 +714,33 @@ function updateKaraoke(t) {
   requestAnimationFrame(() => centerLine(active));
 }
 
-// ── Cargar LRC ───────────────────────────────────────────────────────────────
+// ── Cargar LRC / TXT ─────────────────────────────────────────────────────────
 
 async function loadLyrics(trackFile) {
   lyrics = [];
+  plainLyrics = '';
   karaokeInner.innerHTML = '';
   karaokeWrap.classList.remove('visible');
-  const lrcFile = trackFile.replace(/\.[^/.]+$/, '') + '.lrc';
+  btnLyrics.classList.remove('visible');
+
+  const base = trackFile.replace(/\.[^/.]+$/, '');
+
+  // 1) Intentar .lrc (karaoke sincronizado)
   try {
-    const res = await fetch(lrcFile);
-    if (!res.ok) return;
-    lyrics = parseLRC(await res.text());
-    renderLyrics();
+    const res = await fetch(base + '.lrc');
+    if (res.ok) {
+      lyrics = parseLRC(await res.text());
+      if (lyrics.length) { renderLyrics(); return; }
+    }
+  } catch (_) {}
+
+  // 2) Intentar .txt (letra sin sincronizar → modal)
+  try {
+    const res = await fetch(base + '.txt');
+    if (res.ok) {
+      plainLyrics = await res.text();
+      if (plainLyrics.trim()) btnLyrics.classList.add('visible');
+    }
   } catch (_) {}
 }
 
@@ -586,14 +759,20 @@ async function loadSongs() {
     tracks = files.map(f => ({
       file: f,
       name: f.replace(/\.[^/.]+$/, '').replace(/[-_]/g, ' '),
-      hasLyrics: false
+      hasLyrics: false,
+      hasPlainLyrics: false
     }));
 
-    // Detectar qué pistas tienen .lrc
+    // Detectar qué pistas tienen .lrc o .txt
     await Promise.all(tracks.map(async (t, i) => {
+      const base = t.file.replace(/\.[^/.]+$/, '');
       try {
-        const r = await fetch(t.file.replace(/\.[^/.]+$/, '') + '.lrc', { method: 'HEAD' });
-        if (r.ok) tracks[i].hasLyrics = true;
+        const r = await fetch(base + '.lrc', { method: 'HEAD' });
+        if (r.ok) { tracks[i].hasLyrics = true; return; }
+      } catch (_) {}
+      try {
+        const r = await fetch(base + '.txt', { method: 'HEAD' });
+        if (r.ok) tracks[i].hasPlainLyrics = true;
       } catch (_) {}
     }));
 
@@ -621,7 +800,7 @@ function renderPlaylist() {
     <div class="track-item ${i === currentIndex ? 'active' : ''}" data-index="${i}">
       <span class="track-num">${i === currentIndex ? '♪' : i+1}</span>
       <span class="track-name">${t.name}</span>
-      ${t.hasLyrics ? '<span class="has-lyrics">♩ letra</span>' : ''}
+      ${t.hasLyrics ? '<span class="has-lyrics">♩ letra</span>' : t.hasPlainLyrics ? '<span class="has-lyrics">♩ letra</span>' : ''}
       <span class="track-dur">${durations[i] !== undefined ? formatTime(durations[i]) : '—'}</span>
     </div>
   `).join('');
