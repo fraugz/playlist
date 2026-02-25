@@ -301,7 +301,32 @@
     letter-spacing: 0.05em;
   }
 
-  .playlist { display: flex; flex-direction: column; gap: 0.35rem; }
+  .playlist {
+    display: flex;
+    flex-direction: column;
+    gap: 0.35rem;
+    max-height: 340px;
+    overflow-y: auto;
+    scroll-behavior: smooth;
+    padding-right: 0.25rem;
+  }
+
+  .playlist::-webkit-scrollbar {
+    width: 4px;
+  }
+
+  .playlist::-webkit-scrollbar-track {
+    background: transparent;
+  }
+
+  .playlist::-webkit-scrollbar-thumb {
+    background: var(--border);
+    border-radius: 2px;
+  }
+
+  .playlist::-webkit-scrollbar-thumb:hover {
+    background: var(--muted);
+  }
 
   .track-item {
     background: var(--surface);
@@ -603,6 +628,12 @@ function renderPlaylist() {
 
   playlistEl.querySelectorAll('.track-item').forEach(el => {
     el.addEventListener('click', () => { loadTrack(+el.dataset.index); playAudio(); });
+  });
+
+  // Scroll suave hasta la canción activa
+  requestAnimationFrame(() => {
+    const activeEl = playlistEl.querySelector('.track-item.active');
+    if (activeEl) activeEl.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
   });
 }
 
