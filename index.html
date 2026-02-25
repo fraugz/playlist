@@ -827,6 +827,7 @@ function loadTrack(idx) {
   progressFill.style.width = '0%';
   currentTimeEl.textContent = '0:00';
   totalTimeEl.textContent = durations[idx] !== undefined ? formatTime(durations[idx]) : '0:00';
+  closeModal();
   loadLyrics(t.file);
   renderPlaylist();
 }
